@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import os
+import io
 from dotenv import load_dotenv
 from core.ai_classifier import classify_email
 from core.auto_responder import generate_response
@@ -120,15 +121,14 @@ if uploaded_file:
 
     clean_df = prepare_download(df)
 
-    csv = clean_df.to_csv(
-        index=False,
-        sep=";",
-        encoding="utf-8-sig"
-    )
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        clean_df.to_excel(writer, index=False, sheet_name="Resultados")
 
     st.download_button(
-        label="⬇ Descargar resultados",
-        data=csv,
-        file_name="classified_emails.csv",
-        mime="text/csv"
-    )
+    label="⬇ Descargar resultados en Excel",
+    data=output.getvalue(),
+    file_name="classified_emails.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
