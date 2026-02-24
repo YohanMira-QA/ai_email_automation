@@ -1,8 +1,20 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from ai_classifier import classify_email
-from auto_responder import generate_response
+import os
+from dotenv import load_dotenv
+from core.ai_classifier import classify_email
+from core.auto_responder import generate_response
+from utils.dashboard_utils import prepare_download
+
+# -----------------------
+# CARGAR VARIABLES .ENV
+# -----------------------
+load_dotenv()
+
+
+APP_USERNAME = os.getenv("APP_USERNAME")
+APP_PASSWORD = os.getenv("APP_PASSWORD")
 
 # -----------------------
 # CONFIGURACIÓN GENERAL
@@ -19,12 +31,14 @@ st.set_page_config(
 def login():
     st.title("🔐 Business Automation Login")
 
-    username = st.text_input("Usuario")
-    password = st.text_input("Contraseña", type="password")
+    user_input = st.text_input("Usuario")
+    password_input = st.text_input("Contraseña", type="password")
 
     if st.button("Ingresar"):
-        if username == "admin" and password == "1234":
+        if user_input == APP_USERNAME and password_input == APP_PASSWORD:
             st.session_state["authenticated"] = True
+            st.success("Login exitoso ✅")
+            st.rerun()
         else:
             st.error("Credenciales incorrectas")
 
@@ -40,81 +54,81 @@ if not st.session_state["authenticated"]:
 # -----------------------
 
 st.title("📧 AI Email Automation Dashboard")
-st.write("Sube un archivo CSV con columna 'email_body'")
+st.write("Sube un archivo CSV con columna **email_body**")
 
 uploaded_file = st.file_uploader("Sube tu archivo CSV", type=["csv"])
 
 if uploaded_file:
+
     df = pd.read_csv(uploaded_file)
 
     if "email_body" not in df.columns:
-        st.error("El archivo debe contener columna 'email_body'")
-    else:
-        categories = []
-        responses = []
+        st.error("El archivo debe contener la columna 'email_body'")
+        st.stop()
 
-        with st.spinner("Procesando emails..."):
-            for content in df["email_body"]:
-                category = classify_email(content)
-                response = generate_response(category)
-                categories.append(category)
-                responses.append(response)
+    # -----------------------
+    # PROCESAMIENTO
+    # -----------------------
 
-        df["category"] = categories
-        df["auto_response"] = responses
+    with st.spinner("Procesando emails..."):
+        df["category"] = df["email_body"].apply(classify_email)
+        df["auto_response"] = df["category"].apply(generate_response)
 
-        st.success("Proceso completado ✅")
+    st.success("Proceso completado ✅")
 
-        # -----------------------
-        # MÉTRICAS
-        # -----------------------
+    # -----------------------
+    # MÉTRICAS DINÁMICAS
+    # -----------------------
 
-        st.subheader("📊 Métricas Generales")
+    st.subheader("📊 Métricas Generales")
 
-        total = len(df)
-        leads = (df["category"] == "Lead").sum()
-        support = (df["category"] == "Support").sum()
-        invoices = (df["category"] == "Invoice").sum()
-        spam = (df["category"] == "Spam").sum()
+    total = len(df)
+    category_counts = df["category"].value_counts()
 
-        col1, col2, col3, col4, col5 = st.columns(5)
+    cols = st.columns(len(category_counts) + 1)
 
-        col1.metric("Total Emails", total)
-        col2.metric("Leads", leads)
-        col3.metric("Support", support)
-        col4.metric("Invoices", invoices)
-        col5.metric("Spam", spam)
+    cols[0].metric("Total Emails", total)
 
-        # -----------------------
-        # GRÁFICOS
-        # -----------------------
+    for i, (category, count) in enumerate(category_counts.items()):
+        cols[i + 1].metric(category, count)
 
-        st.subheader("📈 Distribución por Categoría")
+    # -----------------------
+    # GRÁFICO
+    # -----------------------
 
-        fig = px.pie(
-            df,
-            names="category",
-            title="Email Classification Distribution"
-        )
+    st.subheader("📈 Distribución por Categoría")
 
-        st.plotly_chart(fig, use_container_width=True)
+    fig = px.pie(
+        df,
+        names="category",
+        title="Email Classification Distribution",
+        hole=0.4
+    )
 
-        # -----------------------
-        # TABLA
-        # -----------------------
+    st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("📋 Resultados Detallados")
-        st.dataframe(df)
+    # -----------------------
+    # TABLA
+    # -----------------------
 
-        # -----------------------
-        # DESCARGA
-        # -----------------------
+    st.subheader("📋 Resultados Detallados")
+    st.dataframe(df, use_container_width=True)
 
-        csv = df.to_csv(index=False).encode("utf-8")
+    # -----------------------
+    # DESCARGA COMPATIBLE EXCEL
+    # -----------------------
 
-        st.download_button(
-            "⬇ Descargar resultados",
-            csv,
-            "classified_emails.csv",
-            "text/csv"
-        )
+    clean_df = prepare_download(df)
+
+    csv = clean_df.to_csv(
+        index=False,
+        sep=";",
+        encoding="utf-8-sig"
+    )
+
+    st.download_button(
+        label="⬇ Descargar resultados",
+        data=csv,
+        file_name="classified_emails.csv",
+        mime="text/csv"
+    )
