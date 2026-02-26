@@ -13,8 +13,8 @@ from utils.dashboard_utils import prepare_download
 # -----------------------
 load_dotenv()
 
-APP_USERNAME = os.getenv("APP_USERNAME")
-APP_PASSWORD = os.getenv("APP_PASSWORD")
+APP_USERNAME = os.getenv("USERNAME")
+APP_PASSWORD = os.getenv("PASSWORD")
 
 # -----------------------
 # GENERAL CONFIGURATION
